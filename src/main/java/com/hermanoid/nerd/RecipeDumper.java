@@ -1,26 +1,28 @@
 package com.hermanoid.nerd;
 
-import codechicken.nei.ItemPanels;
+import codechicken.nei.ItemList;
 import codechicken.nei.NEIClientConfig;
 import codechicken.nei.PositionedStack;
 import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.ICraftingHandler;
 import codechicken.nei.util.NBTJson;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.RegistryNamespaced;
-import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Stream;
 
 // This dumper will likely be pretty heavy when run on a large modpack
 // It finds all items in the world, then queries all recipe handlers for recipes to make it (crafting, not usage)
@@ -32,6 +34,8 @@ public class RecipeDumper extends DataDumper {
     public RecipeDumper(String name) {
         super(name);
     }
+
+    public String version = "1.0";
 
     @Override
     public String[] header() {
@@ -48,79 +52,70 @@ public class RecipeDumper extends DataDumper {
         itemObj.addProperty("displayName", stack.getDisplayName());
 
         NBTTagCompound tag = stack.writeToNBT(new NBTTagCompound());
-        tag.removeTag("Count");
-        itemObj.addProperty("nbt", tag.toString());
+        itemObj.add("nbt", NBTJson.toJsonObject(tag));
+
         // I think there will be extra metadata/info here.
         return itemObj;
     }
 
-    private String stacksToJsonArrayString(List<PositionedStack> stacks) {
+    private JsonArray stacksToJsonArray(List<PositionedStack> stacks) {
         JsonArray arr = new JsonArray();
         for (PositionedStack stack : stacks) {
             Item item = stack.item.getItem();
             JsonObject itemObj = stackToDetailedJson(stack.item);
             arr.add(itemObj);
         }
-        return arr.toString();
+        return arr;
     }
 
-    @Override
-    public Iterable<String[]> dump(int mode) {
-        // ItemStack craftingTable = new ItemStack(Item.getItemById(58));
-        // ItemStack furnace = new ItemStack(Item.getItemById(61));
+    public JsonObject extractJsonRecipeData(ItemStack targetStack){
+        // Gather item details (don't grab everything... you can dump items if you want more details)
+        // These columns will be repeated many times in the output, so don't write more than needed.
 
-        // Dare I cache all this dump output into a list?
-        // We'll try it and beg forgiveness from the gods of RAM if things go south
-        // I just don't know how much text I'm going to be dealing with yet.
-        List<String[]> list = new LinkedList<>();
-        for (ItemStack stack : ItemPanels.itemPanel.getItems()) {
-            // Gather item details (don't grab everything... you can dump items if you want more details)
-            // These columns will be repeated many times in the output, so don't write more than needed.
-            Item item = (Item) stack.getItem();
-            int id = itemRegistry.getIDForObject(item);
-            String name = itemRegistry.getNameForObject(item);
+        JsonObject queryDump = new JsonObject();
+        queryDump.add("query_item", stackToDetailedJson(targetStack));
 
-            String queryItem = stackToDetailedJson(stack).toString();
+        JsonArray handlerDumpArr = new JsonArray();
+        // Perform the Query
+        List<ICraftingHandler> handlers = GuiCraftingRecipe.getCraftingHandlers("item", targetStack);
+        for (ICraftingHandler handler : handlers) {
 
-            // Perform the Query
-            List<ICraftingHandler> handlers = GuiCraftingRecipe.getCraftingHandlers("item", stack);
-            for (ICraftingHandler handler : handlers) {
-                // Gather crafting handler details (again, just a minimum, cross-reference a handler dump if you want)
-                final String handlerName = handler.getHandlerId();
-                final String recipeName = handler.getRecipeName();
-                final String recipeTabName = handler.getRecipeTabName();
+            JsonObject handlerDump = new JsonObject();
 
-                // There be some *nested loop* action here
-                for (int recipeIndex = 0; recipeIndex < handler.numRecipes(); recipeIndex++) {
-                    // Collapse Ingredient Lists into JSON format to keep CSV file sizes from going *completely* crazy
-                    // List<> ingredients = handler.getIngredientStacks(recipeIndex).stream().map(
-                    // pos_stack -> pos_stack.item.getItem()
-                    // ).collect(Collectors.toList());
-                    String ingredients = stacksToJsonArrayString(handler.getIngredientStacks(recipeIndex));
-                    String otherIngredients = stacksToJsonArrayString(handler.getOtherStacks(recipeIndex));
-                    String outItem = stackToDetailedJson(handler.getResultStack(recipeIndex).item).toString();
-                    list.add(
-                        new String[] { name, Integer.toString(id), queryItem, handlerName,
-                            Integer.toString(recipeIndex), ingredients, otherIngredients, outItem });
+            // Gather crafting handler details (again, just a minimum, cross-reference a handler dump if you want)
+            handlerDump.addProperty("id", handler.getHandlerId());
+            handlerDump.addProperty("name", handler.getRecipeName());
+            handlerDump.addProperty("tab_name", handler.getRecipeTabName());
+
+            JsonArray recipeDumpArr = new JsonArray();
+            // There be some *nested loop* action here
+            for (int recipeIndex = 0; recipeIndex < handler.numRecipes(); recipeIndex++) {
+                JsonObject recipeDump = new JsonObject();
+                // Collapse Ingredient Lists into JSON format to keep CSV file sizes from going *completely* crazy
+                // List<> ingredients = handler.getIngredientStacks(recipeIndex).stream().map(
+                // pos_stack -> pos_stack.item.getItem()
+                // ).collect(Collectors.toList());
+                recipeDump.add("ingredients", stacksToJsonArray(handler.getIngredientStacks(recipeIndex)));
+                recipeDump.add("other_stacks", stacksToJsonArray(handler.getOtherStacks(recipeIndex)));
+                if (handler.getResultStack(recipeIndex) != null) {
+                    recipeDump.add("out_item", stackToDetailedJson(handler.getResultStack(recipeIndex).item));
                 }
+                recipeDumpArr.add(recipeDump);
             }
+            handlerDump.add("recipes", recipeDumpArr);
+            handlerDumpArr.add(handlerDump);
         }
-
-        // for (IRecipeHandler handler : GuiUsageRecipe.usagehandlers) {
-        // final String handlerName = handler.getHandlerId();
-        // final String handlerId = Objects.firstNonNull(
-        // handler instanceof TemplateRecipeHandler ? ((TemplateRecipeHandler) handler).getOverlayIdentifier()
-        // : null,
-        // "null");
-        // HandlerInfo info = GuiRecipeTab.getHandlerInfo(handlerName, handlerId);
-        //
-        // list.add(
-        // new String[] { handler.getRecipeName(), handlerName, handlerId,
-        // info != null ? info.getModName() : "Unknown",
-        // info != null && info.getItemStack() != null ? info.getItemStack().toString() : "Unknown" });
-        // }
-        return list;
+        queryDump.add("handlers", handlerDumpArr);
+        return queryDump;
     }
+
+    public Stream<JsonObject> getQueryDumps() {
+        return ItemList.items.parallelStream()
+                    .limit(4000)
+                    .map(this::extractJsonRecipeData);
+    }
+
+
 
     @Override
     public String renderName() {
@@ -129,13 +124,12 @@ public class RecipeDumper extends DataDumper {
 
     @Override
     public String getFileExtension() {
-        switch (getMode()) {
-            case 0:
-                return ".csv";
-            case 1:
-                return ".json";
-        }
-        return null;
+        return ".json";
+//        return switch (getMode()) {
+//            case 0 -> ".csv";
+//            case 1 -> ".json";
+//            default -> null;
+//        };
     }
 
     @Override
@@ -149,23 +143,53 @@ public class RecipeDumper extends DataDumper {
     }
 
     @Override
-    public void dumpTo(File file) throws IOException {
-        if (getMode() == 0) super.dumpTo(file);
-        else dumpJson(file);
+    public Iterable<String[]> dump(int mode) {
+        // A little crunchy, I'll admit
+        throw new NotImplementedException("Recipe Dumper overrides the base DataDumper's dumping functionality in dumpTo(file)! dump() should never be called.");
     }
 
+    @Override
+    public void dumpTo(File file) throws IOException {
+        if (getMode() != 1) { throw new RuntimeException("RecipeDumper received an unexpected mode! There should only be one mode: JSON");}
+        dumpJson(file);
+    }
+
+    // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.
     public void dumpJson(File file) throws IOException {
         final String[] header = header();
         final FileWriter writer;
+        final JsonWriter jsonWriter;
+        final Gson gson = new Gson();
+
         try {
             writer = new FileWriter(file);
-            for (String[] list : dump(getMode())) {
-                NBTTagCompound tag = new NBTTagCompound();
-                for (int i = 0; i < header.length; i++) {
-                    tag.setString(header[i], list[i]);
+            jsonWriter = new JsonWriter(writer);
+
+            jsonWriter.beginObject();
+            jsonWriter.setIndent("    ");
+            jsonWriter.name("version").value(version);
+
+            jsonWriter.name("queries").beginArray();
+            Object lock = new Object();
+
+//            AtomicReference<IOException> error = new AtomicReference<>(null);
+
+            getQueryDumps().forEach(obj ->
+            {
+                synchronized (lock){
+                    gson.toJson(obj, jsonWriter);
                 }
-                IOUtils.write(NBTJson.toJson(tag) + "\n", writer);
-            }
+            });
+
+//            // Super cool error handling.
+//            if (error.get() != null){
+//                throw error.get();
+//            }
+
+            jsonWriter.endArray();
+
+            jsonWriter.endObject();
+            jsonWriter.close();
             writer.close();
         } catch (IOException e) {
             NEIClientConfig.logger.error("Filed to save dump recipe list to file {}", file, e);
@@ -174,6 +198,6 @@ public class RecipeDumper extends DataDumper {
 
     @Override
     public int modeCount() {
-        return 2;
+        return 1; // Only JSON
     }
 }
