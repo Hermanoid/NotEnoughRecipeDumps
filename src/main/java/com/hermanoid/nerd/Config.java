@@ -1,4 +1,4 @@
-package com.myname.mymodid;
+package com.hermanoid.nerd;
 
 import java.io.File;
 
