@@ -7,10 +7,13 @@ import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.ICraftingHandler;
 import codechicken.nei.util.NBTJson;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
+import com.hermanoid.nerd.info_extractors.IRecipeInfoExtractor;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -36,6 +39,18 @@ public class RecipeDumper extends DataDumper {
     }
 
     public String version = "1.0";
+
+    public int totalQueries = -1;
+    public int dumpedQueries = -1;
+
+    private Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
+
+    public void registerRecipeInfoExtractor(IRecipeInfoExtractor extractor){
+        for(String id : extractor.getCompatibleHandlers())
+            recipeInfoExtractors.put(id, extractor);
+    }
+
+
 
     @Override
     public String[] header() {
@@ -68,22 +83,34 @@ public class RecipeDumper extends DataDumper {
         return arr;
     }
 
-    public JsonObject extractJsonRecipeData(ItemStack targetStack){
+    private static class QueryResult{
+        public ItemStack targetStack;
+        public List<ICraftingHandler> handlers;
+    }
+
+    private QueryResult performQuery(ItemStack targetStack){
+        QueryResult result = new QueryResult();
+        result.targetStack = targetStack;
+        result.handlers = GuiCraftingRecipe.getCraftingHandlers("item", targetStack);
+        return result;
+    }
+
+    private JsonObject extractJsonRecipeData(QueryResult queryResult){
         // Gather item details (don't grab everything... you can dump items if you want more details)
         // These columns will be repeated many times in the output, so don't write more than needed.
 
         JsonObject queryDump = new JsonObject();
-        queryDump.add("query_item", stackToDetailedJson(targetStack));
+        queryDump.add("query_item", stackToDetailedJson(queryResult.targetStack));
 
         JsonArray handlerDumpArr = new JsonArray();
         // Perform the Query
-        List<ICraftingHandler> handlers = GuiCraftingRecipe.getCraftingHandlers("item", targetStack);
+        List<ICraftingHandler> handlers = queryResult.handlers;
         for (ICraftingHandler handler : handlers) {
-
             JsonObject handlerDump = new JsonObject();
 
             // Gather crafting handler details (again, just a minimum, cross-reference a handler dump if you want)
-            handlerDump.addProperty("id", handler.getHandlerId());
+            String handlerId = handler.getHandlerId();
+            handlerDump.addProperty("id", handlerId);
             handlerDump.addProperty("name", handler.getRecipeName());
             handlerDump.addProperty("tab_name", handler.getRecipeTabName());
 
@@ -100,6 +127,11 @@ public class RecipeDumper extends DataDumper {
                 if (handler.getResultStack(recipeIndex) != null) {
                     recipeDump.add("out_item", stackToDetailedJson(handler.getResultStack(recipeIndex).item));
                 }
+                if(recipeInfoExtractors.containsKey(handlerId)){
+                    for(IRecipeInfoExtractor extractor : recipeInfoExtractors.get(handlerId)){
+                        recipeDump.add(extractor.getSlug(), extractor.extractInfo(handler, recipeIndex));
+                    }
+                }
                 recipeDumpArr.add(recipeDump);
             }
             handlerDump.add("recipes", recipeDumpArr);
@@ -109,9 +141,14 @@ public class RecipeDumper extends DataDumper {
         return queryDump;
     }
 
-    public Stream<JsonObject> getQueryDumps() {
-        return ItemList.items.parallelStream()
-                    .limit(4000)
+    public Stream<JsonObject> getQueryDumps(List<ItemStack> items) {
+        // TODO: Experiment with parallelization here
+        // Since the bulk of work here is the query, which is already parallel,
+        // I'm not sure how much performance gain (if any) this would cause.
+        return items.stream()
+                    .limit(500)
+                    .map(this::performQuery)
+//                    .parallel()
                     .map(this::extractJsonRecipeData);
     }
 
@@ -160,6 +197,9 @@ public class RecipeDumper extends DataDumper {
         final FileWriter writer;
         final JsonWriter jsonWriter;
         final Gson gson = new Gson();
+        List<ItemStack> items = ItemList.items;
+        totalQueries = items.size();
+        dumpedQueries = 0;
 
         try {
             writer = new FileWriter(file);
@@ -174,10 +214,11 @@ public class RecipeDumper extends DataDumper {
 
 //            AtomicReference<IOException> error = new AtomicReference<>(null);
 
-            getQueryDumps().forEach(obj ->
+            getQueryDumps(items).forEach(obj ->
             {
                 synchronized (lock){
                     gson.toJson(obj, jsonWriter);
+                    dumpedQueries++;
                 }
             });
 
@@ -194,6 +235,8 @@ public class RecipeDumper extends DataDumper {
         } catch (IOException e) {
             NEIClientConfig.logger.error("Filed to save dump recipe list to file {}", file, e);
         }
+        totalQueries = -1;
+        dumpedQueries = -1;
     }
 
     @Override
