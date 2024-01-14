@@ -48,13 +48,12 @@ public class RecipeDumper extends DataDumper {
     public int totalQueries = -1;
     public int dumpedQueries = -1;
     private boolean dumpActive = false;
-    private Timer timer = new Timer();
+    private final Timer timer = new Timer();
 
     private final Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
 
-    public void registerRecipeInfoExtractor(IRecipeInfoExtractor extractor){
-        for(String id : extractor.getCompatibleHandlers())
-            recipeInfoExtractors.put(id, extractor);
+    public void registerRecipeInfoExtractor(IRecipeInfoExtractor extractor) {
+        for (String id : extractor.getCompatibleHandlers()) recipeInfoExtractors.put(id, extractor);
     }
 
     @Override
@@ -87,19 +86,20 @@ public class RecipeDumper extends DataDumper {
         return arr;
     }
 
-    private static class QueryResult{
+    private static class QueryResult {
+
         public ItemStack targetStack;
         public List<ICraftingHandler> handlers;
     }
 
-    private QueryResult performQuery(ItemStack targetStack){
+    private QueryResult performQuery(ItemStack targetStack) {
         QueryResult result = new QueryResult();
         result.targetStack = targetStack;
         result.handlers = GuiCraftingRecipe.getCraftingHandlers("item", targetStack);
         return result;
     }
 
-    private JsonObject extractJsonRecipeData(QueryResult queryResult){
+    private JsonObject extractJsonRecipeData(QueryResult queryResult) {
         // Gather item details (don't grab everything... you can dump items if you want more details)
         // These columns will be repeated many times in the output, so don't write more than needed.
 
@@ -128,8 +128,8 @@ public class RecipeDumper extends DataDumper {
                 if (handler.getResultStack(recipeIndex) != null) {
                     recipeDump.add("out_item", stackToDetailedJson(handler.getResultStack(recipeIndex).item));
                 }
-                if(recipeInfoExtractors.containsKey(handlerId)){
-                    for(IRecipeInfoExtractor extractor : recipeInfoExtractors.get(handlerId)){
+                if (recipeInfoExtractors.containsKey(handlerId)) {
+                    for (IRecipeInfoExtractor extractor : recipeInfoExtractors.get(handlerId)) {
                         recipeDump.add(extractor.getSlug(), extractor.extractInfo(handler, recipeIndex));
                     }
                 }
@@ -145,11 +145,9 @@ public class RecipeDumper extends DataDumper {
     public Stream<JsonObject> getQueryDumps(List<ItemStack> items) {
         // Parallelization doesn't help a *lot* but it is like a 2x speedup so I'll take it
         return items.parallelStream()
-                    .map(this::performQuery)
-                    .map(this::extractJsonRecipeData);
+            .map(this::performQuery)
+            .map(this::extractJsonRecipeData);
     }
-
-
 
     @Override
     public String renderName() {
@@ -174,17 +172,19 @@ public class RecipeDumper extends DataDumper {
     @Override
     public Iterable<String[]> dump(int mode) {
         // A little crunchy, I'll admit
-        throw new NotImplementedException("Recipe Dumper overrides the base DataDumper's dumping functionality in dumpTo(file)! dump() should never be called.");
+        throw new NotImplementedException(
+            "Recipe Dumper overrides the base DataDumper's dumping functionality in dumpTo(file)! dump() should never be called.");
     }
 
     @Override
-    public void dumpTo(File file) throws IOException {
-        if (getMode() != 1) { throw new RuntimeException("RecipeDumper received an unexpected mode! There should only be one mode: JSON");}
+    public void dumpTo(File file) {
+        if (getMode() != 1) {
+            throw new RuntimeException("RecipeDumper received an unexpected mode! There should only be one mode: JSON");
+        }
         dumpJson(file);
     }
 
-    private void doDumpJson(File file){
-        final String[] header = header();
+    private void doDumpJson(File file) {
         final FileWriter writer;
         final JsonWriter jsonWriter;
         final Gson gson = new Gson();
@@ -198,13 +198,14 @@ public class RecipeDumper extends DataDumper {
 
             jsonWriter.beginObject();
             jsonWriter.setIndent("    ");
-            jsonWriter.name("version").value(version);
+            jsonWriter.name("version")
+                .value(version);
 
-            jsonWriter.name("queries").beginArray();
+            jsonWriter.name("queries")
+                .beginArray();
             Object lock = new Object();
-            getQueryDumps(items).forEach(obj ->
-            {
-                synchronized (lock){
+            getQueryDumps(items).forEach(obj -> {
+                synchronized (lock) {
                     gson.toJson(obj, jsonWriter);
                     dumpedQueries++;
                 }
@@ -223,25 +224,21 @@ public class RecipeDumper extends DataDumper {
     }
 
     // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.
-    public void dumpJson(File file) throws IOException {
-        if(dumpActive){
-            NEIClientUtils.printChatMessage(new ChatComponentTranslation(
-                "nei.options.tools.dump.recipes.duplicate"
-            ));
+    public void dumpJson(File file) {
+        if (dumpActive) {
+            NEIClientUtils.printChatMessage(new ChatComponentTranslation("nei.options.tools.dump.recipes.duplicate"));
             return;
         }
         dumpActive = true;
         TimerTask progressTask = getProgressTask();
-        Thread workerThread = new Thread(()-> {
-            try{
+        Thread workerThread = new Thread(() -> {
+            try {
                 doDumpJson(file);
-            }finally{
+            } finally {
                 dumpActive = false;
                 progressTask.cancel();
             }
-            NEIClientUtils.printChatMessage(new ChatComponentTranslation(
-                "nei.options.tools.dump.recipes.complete"
-            ));
+            NEIClientUtils.printChatMessage(new ChatComponentTranslation("nei.options.tools.dump.recipes.complete"));
         });
         workerThread.start();
     }
@@ -249,14 +246,15 @@ public class RecipeDumper extends DataDumper {
     @NotNull
     private TimerTask getProgressTask() {
         TimerTask progressTask = new TimerTask() {
+
             @Override
             public void run() {
-                NEIClientUtils.printChatMessage(new ChatComponentTranslation(
-                    "nei.options.tools.dump.recipes.progress",
-                    dumpedQueries,
-                    totalQueries,
-                    (float)dumpedQueries/totalQueries*100
-                ));
+                NEIClientUtils.printChatMessage(
+                    new ChatComponentTranslation(
+                        "nei.options.tools.dump.recipes.progress",
+                        dumpedQueries,
+                        totalQueries,
+                        (float) dumpedQueries / totalQueries * 100));
             }
         };
         timer.schedule(progressTask, 0, progressInterval);
