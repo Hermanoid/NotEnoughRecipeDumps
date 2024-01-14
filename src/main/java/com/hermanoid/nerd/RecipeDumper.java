@@ -2,6 +2,7 @@ package com.hermanoid.nerd;
 
 import codechicken.nei.ItemList;
 import codechicken.nei.NEIClientConfig;
+import codechicken.nei.NEIClientUtils;
 import codechicken.nei.PositionedStack;
 import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
@@ -20,11 +21,14 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.RegistryNamespaced;
 import org.apache.commons.lang3.NotImplementedException;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Stream;
 
 // This dumper will likely be pretty heavy when run on a large modpack
@@ -39,18 +43,19 @@ public class RecipeDumper extends DataDumper {
     }
 
     public String version = "1.0";
+    long progressInterval = 2500L;
 
     public int totalQueries = -1;
     public int dumpedQueries = -1;
+    private boolean dumpActive = false;
+    private Timer timer = new Timer();
 
-    private Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
+    private final Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
 
     public void registerRecipeInfoExtractor(IRecipeInfoExtractor extractor){
         for(String id : extractor.getCompatibleHandlers())
             recipeInfoExtractors.put(id, extractor);
     }
-
-
 
     @Override
     public String[] header() {
@@ -76,7 +81,6 @@ public class RecipeDumper extends DataDumper {
     private JsonArray stacksToJsonArray(List<PositionedStack> stacks) {
         JsonArray arr = new JsonArray();
         for (PositionedStack stack : stacks) {
-            Item item = stack.item.getItem();
             JsonObject itemObj = stackToDetailedJson(stack.item);
             arr.add(itemObj);
         }
@@ -119,9 +123,6 @@ public class RecipeDumper extends DataDumper {
             for (int recipeIndex = 0; recipeIndex < handler.numRecipes(); recipeIndex++) {
                 JsonObject recipeDump = new JsonObject();
                 // Collapse Ingredient Lists into JSON format to keep CSV file sizes from going *completely* crazy
-                // List<> ingredients = handler.getIngredientStacks(recipeIndex).stream().map(
-                // pos_stack -> pos_stack.item.getItem()
-                // ).collect(Collectors.toList());
                 recipeDump.add("ingredients", stacksToJsonArray(handler.getIngredientStacks(recipeIndex)));
                 recipeDump.add("other_stacks", stacksToJsonArray(handler.getOtherStacks(recipeIndex)));
                 if (handler.getResultStack(recipeIndex) != null) {
@@ -146,7 +147,7 @@ public class RecipeDumper extends DataDumper {
         // Since the bulk of work here is the query, which is already parallel,
         // I'm not sure how much performance gain (if any) this would cause.
         return items.stream()
-                    .limit(500)
+//                    .limit(500)
                     .map(this::performQuery)
 //                    .parallel()
                     .map(this::extractJsonRecipeData);
@@ -162,11 +163,6 @@ public class RecipeDumper extends DataDumper {
     @Override
     public String getFileExtension() {
         return ".json";
-//        return switch (getMode()) {
-//            case 0 -> ".csv";
-//            case 1 -> ".json";
-//            default -> null;
-//        };
     }
 
     @Override
@@ -191,8 +187,7 @@ public class RecipeDumper extends DataDumper {
         dumpJson(file);
     }
 
-    // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.
-    public void dumpJson(File file) throws IOException {
+    private void doDumpJson(File file){
         final String[] header = header();
         final FileWriter writer;
         final JsonWriter jsonWriter;
@@ -211,9 +206,6 @@ public class RecipeDumper extends DataDumper {
 
             jsonWriter.name("queries").beginArray();
             Object lock = new Object();
-
-//            AtomicReference<IOException> error = new AtomicReference<>(null);
-
             getQueryDumps(items).forEach(obj ->
             {
                 synchronized (lock){
@@ -221,11 +213,6 @@ public class RecipeDumper extends DataDumper {
                     dumpedQueries++;
                 }
             });
-
-//            // Super cool error handling.
-//            if (error.get() != null){
-//                throw error.get();
-//            }
 
             jsonWriter.endArray();
 
@@ -237,6 +224,47 @@ public class RecipeDumper extends DataDumper {
         }
         totalQueries = -1;
         dumpedQueries = -1;
+    }
+
+    // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.
+    public void dumpJson(File file) throws IOException {
+        if(dumpActive){
+            NEIClientUtils.printChatMessage(new ChatComponentTranslation(
+                "nei.options.tools.dump.recipes.duplicate"
+            ));
+            return;
+        }
+        dumpActive = true;
+        TimerTask progressTask = getProgressTask();
+        Thread workerThread = new Thread(()-> {
+            try{
+                doDumpJson(file);
+            }finally{
+                dumpActive = false;
+                progressTask.cancel();
+            }
+            NEIClientUtils.printChatMessage(new ChatComponentTranslation(
+                "nei.options.tools.dump.recipes.complete"
+            ));
+        });
+        workerThread.start();
+    }
+
+    @NotNull
+    private TimerTask getProgressTask() {
+        TimerTask progressTask = new TimerTask() {
+            @Override
+            public void run() {
+                NEIClientUtils.printChatMessage(new ChatComponentTranslation(
+                    "nei.options.tools.dump.recipes.progress",
+                    dumpedQueries,
+                    totalQueries,
+                    (float)dumpedQueries/totalQueries*100
+                ));
+            }
+        };
+        timer.schedule(progressTask, 0, progressInterval);
+        return progressTask;
     }
 
     @Override

@@ -1,4 +1,7 @@
 nei.options.tools.dump.recipes=NEI Recipes
-nei.options.tools.dump.recipes.dumped=recipes were dumped to %s
+nei.options.tools.dump.recipes.dumped=Recipe dump started to %s
 nei.options.tools.dump.recipes.mode.0=CSV
 nei.options.tools.dump.recipes.mode.1=Json
+nei.options.tools.dump.recipes.progress=Recipe Dump Progress %d/%d (%.2f%%)
+nei.options.tools.dump.recipes.complete=Recipe Dump Complete!
+nei.options.tools.dump.recipes.duplicate=Recipe Dump is already active, ignoring request

@@ -3,13 +3,18 @@ package com.hermanoid.nerd.info_extractors;
 import codechicken.nei.recipe.ICraftingHandler;
 import codechicken.nei.util.NBTJson;
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import gregtech.api.util.GT_Recipe;
+import gregtech.common.fluid.GT_Fluid;
 import gregtech.nei.GT_NEI_DefaultHandler;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
 
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
@@ -35,9 +40,12 @@ public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
             // The automatic serializer doesn't like the rarity enum, I dunno why
             "rarity",
             // I don't think a fluid's corresponding block is useful, and it causes breaky recursion
-            "block"
+            "block",
+            // Some recipes are GT_Recipe_WithAlt, which have more evil ItemStacks we can't serialize.
+            "mOreDictAlt"
 
         ));
+        List<Type> badTypes = Arrays.asList(GT_NEI_DefaultHandler.class, ItemStack.class, FluidStack.class);
         @Override
         public boolean shouldSkipField(FieldAttributes f) {
 
@@ -46,11 +54,12 @@ public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
 
         @Override
         public boolean shouldSkipClass(Class<?> clazz) {
-            return clazz.equals(GT_NEI_DefaultHandler.class); // Block recursion
+            return badTypes.contains(clazz);
         }
     }
 
     private class FluidStackSerializer implements JsonSerializer<FluidStack>{
+        private static final Type fluidType = new TypeToken<Fluid>(){}.getType();
         @Override
         public JsonElement serialize(FluidStack src, Type typeOfSrc, JsonSerializationContext context) {
             // Fluids have some goofy unserializable things, similar to ItemStacks
@@ -59,12 +68,22 @@ public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
             if(src.tag != null){
                 root.add("tag", NBTJson.toJsonObject(src.tag));
             }
-            JsonObject fluid = (JsonObject) gson.toJsonTree(src.getFluid());
+            // Some fluids (like water) are defined using anonymous types
+            // I think that specifying the type for GT_Fluids would throw away information,
+            // but for non-GT_Fluids, we'll need to un-anonymize this beeswax.
+            JsonObject fluid = null;
+            if(src.getFluid().getClass().equals(GT_Fluid.class)){
+                fluid = (JsonObject) gson.toJsonTree(src.getFluid());
+            }else{
+                fluid = (JsonObject) gson.toJsonTree(src.getFluid(), fluidType);
+            }
             // Manually serialize rarity bc wierdness
             fluid.addProperty("rarity", src.getFluid().getRarity().toString());
             // Slap on some info that's only available via method calls
             fluid.addProperty("id", src.getFluidID());
             root.add("fluid", fluid);
+
+
             return root;
         }
     }
@@ -85,7 +104,12 @@ public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
     public JsonElement extractInfo(ICraftingHandler handler, int recipeIndex) {
         GT_NEI_DefaultHandler gthandler = (GT_NEI_DefaultHandler) handler;
         GT_Recipe recipe = gthandler.getCache().get(recipeIndex).mRecipe;
-        return gson.toJsonTree(recipe);
+        try{
+            return gson.toJsonTree(recipe);
+        }catch(Exception e){
+            System.out.println("O poop");
+            return null;
+        }
     }
 
     @Override
