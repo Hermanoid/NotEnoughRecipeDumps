@@ -4,6 +4,7 @@ import codechicken.nei.recipe.ICraftingHandler;
 import codechicken.nei.util.NBTJson;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
+import gregtech.api.enums.Materials;
 import gregtech.api.util.GT_Recipe;
 import gregtech.common.fluid.GT_Fluid;
 import gregtech.nei.GT_NEI_DefaultHandler;
@@ -45,7 +46,12 @@ public class GTDefaultRecipeInfoExtractor implements IRecipeInfoExtractor {
             "mOreDictAlt"
 
         ));
-        List<Type> badTypes = Arrays.asList(GT_NEI_DefaultHandler.class, ItemStack.class, FluidStack.class);
+        List<Type> badTypes = Arrays.asList(
+            GT_NEI_DefaultHandler.class,
+            ItemStack.class,
+            FluidStack.class,
+            Materials.class // Pops up in metadata (contains lots of images and such)
+        );
         @Override
         public boolean shouldSkipField(FieldAttributes f) {
 

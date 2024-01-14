@@ -143,13 +143,9 @@ public class RecipeDumper extends DataDumper {
     }
 
     public Stream<JsonObject> getQueryDumps(List<ItemStack> items) {
-        // TODO: Experiment with parallelization here
-        // Since the bulk of work here is the query, which is already parallel,
-        // I'm not sure how much performance gain (if any) this would cause.
-        return items.stream()
-//                    .limit(500)
+        // Parallelization doesn't help a *lot* but it is like a 2x speedup so I'll take it
+        return items.parallelStream()
                     .map(this::performQuery)
-//                    .parallel()
                     .map(this::extractJsonRecipeData);
     }
 
