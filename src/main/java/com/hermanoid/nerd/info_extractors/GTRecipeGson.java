@@ -1,17 +1,25 @@
 package com.hermanoid.nerd.info_extractors;
 
-import com.google.gson.*;
-import com.hermanoid.nerd.RecipeDumpContext;
-import gregtech.api.enums.Materials;
-import gregtech.nei.GT_NEI_DefaultHandler;
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.fluids.FluidStack;
-
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
+
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.hermanoid.nerd.RecipeDumpContext;
+
+import gregtech.api.enums.Materials;
+import gregtech.nei.GT_NEI_DefaultHandler;
 
 public class GTRecipeGson {
 

@@ -1,5 +1,27 @@
 package com.hermanoid.nerd;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.stream.Stream;
+
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.ChatComponentTranslation;
+
+import org.apache.commons.lang3.NotImplementedException;
+import org.jetbrains.annotations.NotNull;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
+import com.hermanoid.nerd.info_extractors.IRecipeInfoExtractor;
+
 import codechicken.core.CommonUtils;
 import codechicken.nei.ItemList;
 import codechicken.nei.NEIClientConfig;
@@ -8,25 +30,6 @@ import codechicken.nei.PositionedStack;
 import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.ICraftingHandler;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.stream.JsonWriter;
-import com.hermanoid.nerd.info_extractors.IRecipeInfoExtractor;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ChatComponentTranslation;
-import org.apache.commons.lang3.NotImplementedException;
-import org.jetbrains.annotations.NotNull;
-
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.stream.Stream;
 
 // This dumper will likely be pretty heavy when run on a large modpack
 // It finds all items in the world, then queries all recipe handlers for recipes to make it (crafting, not usage)
