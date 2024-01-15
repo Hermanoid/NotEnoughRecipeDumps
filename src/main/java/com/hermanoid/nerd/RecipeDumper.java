@@ -1,5 +1,6 @@
 package com.hermanoid.nerd;
 
+import codechicken.core.CommonUtils;
 import codechicken.nei.ItemList;
 import codechicken.nei.NEIClientConfig;
 import codechicken.nei.NEIClientUtils;
@@ -7,7 +8,6 @@ import codechicken.nei.PositionedStack;
 import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.ICraftingHandler;
-import codechicken.nei.util.NBTJson;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
@@ -15,11 +15,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 import com.hermanoid.nerd.info_extractors.IRecipeInfoExtractor;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ChatComponentTranslation;
-import net.minecraft.util.RegistryNamespaced;
 import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 
@@ -36,8 +33,6 @@ import java.util.stream.Stream;
 // Finally, it dumps all that into a (probably large) output file
 public class RecipeDumper extends DataDumper {
 
-    private static final RegistryNamespaced itemRegistry = Item.itemRegistry;
-
     public RecipeDumper(String name) {
         super(name);
     }
@@ -49,6 +44,8 @@ public class RecipeDumper extends DataDumper {
     public int dumpedQueries = -1;
     private boolean dumpActive = false;
     private final Timer timer = new Timer();
+
+    private RecipeDumpContext context = null;
 
     private final Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
 
@@ -62,26 +59,10 @@ public class RecipeDumper extends DataDumper {
             "Output Item" };
     }
 
-    private JsonObject stackToDetailedJson(ItemStack stack) {
-        JsonObject itemObj = new JsonObject();
-        Item item = stack.getItem();
-        itemObj.addProperty("id", itemRegistry.getIDForObject(item));
-        itemObj.addProperty("regName", itemRegistry.getNameForObject(item));
-        itemObj.addProperty("name", item != null ? stack.getUnlocalizedName() : "null");
-        itemObj.addProperty("displayName", stack.getDisplayName());
-
-        NBTTagCompound tag = stack.writeToNBT(new NBTTagCompound());
-        itemObj.add("nbt", NBTJson.toJsonObject(tag));
-
-        // I think there will be extra metadata/info here.
-        return itemObj;
-    }
-
     private JsonArray stacksToJsonArray(List<PositionedStack> stacks) {
         JsonArray arr = new JsonArray();
         for (PositionedStack stack : stacks) {
-            JsonObject itemObj = stackToDetailedJson(stack.item);
-            arr.add(itemObj);
+            arr.add(context.getMinimalItemDump(stack.item));
         }
         return arr;
     }
@@ -104,7 +85,7 @@ public class RecipeDumper extends DataDumper {
         // These columns will be repeated many times in the output, so don't write more than needed.
 
         JsonObject queryDump = new JsonObject();
-        queryDump.add("query_item", stackToDetailedJson(queryResult.targetStack));
+        queryDump.add("query_item", context.getMinimalItemDump(queryResult.targetStack));
 
         JsonArray handlerDumpArr = new JsonArray();
         // Perform the Query
@@ -126,11 +107,11 @@ public class RecipeDumper extends DataDumper {
                 recipeDump.add("ingredients", stacksToJsonArray(handler.getIngredientStacks(recipeIndex)));
                 recipeDump.add("other_stacks", stacksToJsonArray(handler.getOtherStacks(recipeIndex)));
                 if (handler.getResultStack(recipeIndex) != null) {
-                    recipeDump.add("out_item", stackToDetailedJson(handler.getResultStack(recipeIndex).item));
+                    recipeDump.add("out_item", context.getMinimalItemDump(handler.getResultStack(recipeIndex).item));
                 }
                 if (recipeInfoExtractors.containsKey(handlerId)) {
                     for (IRecipeInfoExtractor extractor : recipeInfoExtractors.get(handlerId)) {
-                        recipeDump.add(extractor.getSlug(), extractor.extractInfo(handler, recipeIndex));
+                        recipeDump.add(extractor.getSlug(), extractor.extractInfo(context, handler, recipeIndex));
                     }
                 }
                 recipeDumpArr.add(recipeDump);
@@ -185,6 +166,7 @@ public class RecipeDumper extends DataDumper {
     }
 
     private void doDumpJson(File file) {
+        context = new RecipeDumpContext();
         final FileWriter writer;
         final JsonWriter jsonWriter;
         final Gson gson = new Gson();
@@ -216,11 +198,37 @@ public class RecipeDumper extends DataDumper {
             jsonWriter.endObject();
             jsonWriter.close();
             writer.close();
+
+            dumpContext(context);
         } catch (IOException e) {
-            NEIClientConfig.logger.error("Filed to save dump recipe list to file {}", file, e);
+            NEIClientConfig.logger.error("Failed to save dump recipe list to file {}", file, e);
+        } finally {
+            context = null;
+            totalQueries = -1;
+            dumpedQueries = -1;
         }
-        totalQueries = -1;
-        dumpedQueries = -1;
+    }
+
+    private void dumpContext(RecipeDumpContext context) {
+        try {
+            File file = new File(
+                CommonUtils.getMinecraftDir(),
+                "dumps/" + getFileName(name.replaceFirst(".+\\.", "") + "_extras"));
+            if (!file.getParentFile()
+                .exists())
+                file.getParentFile()
+                    .mkdirs();
+            if (!file.exists()) file.createNewFile();
+
+            // dumpTo(file);
+            FileWriter writer = new FileWriter(file);
+            JsonWriter jsonWriter = new JsonWriter(writer);
+            context.gson.toJson(context.dump(), jsonWriter);
+            jsonWriter.close();
+            writer.close();
+        } catch (Exception e) {
+            NEIClientConfig.logger.error("Error dumping extras for " + renderName() + " mode: " + getMode(), e);
+        }
     }
 
     // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.

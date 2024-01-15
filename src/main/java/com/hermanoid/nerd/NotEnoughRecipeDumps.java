@@ -15,7 +15,7 @@ public class NotEnoughRecipeDumps {
 
     public static final Logger LOG = LogManager.getLogger(Tags.MODID);
 
-    @SidedProxy(clientSide = "com.hermanoid.nerd.ClientProxy", serverSide = "com.hermanoid.nerd.CommonProxy")
+    @SidedProxy(clientSide = "com.hermanoid.nerd.ClientProxy")
     public static CommonProxy proxy;
 
     @Mod.EventHandler
