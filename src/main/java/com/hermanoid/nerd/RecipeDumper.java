@@ -109,7 +109,8 @@ public class RecipeDumper extends DataDumper {
 
     public Stream<JsonObject> getQueryDumps(List<ItemStack> items) {
         // Parallelization doesn't help a *lot* but it is like a 2x speedup so I'll take it
-        return items.parallelStream()
+        // Update yeahhhh so parallelization works with some mods but in the larger GTNH modpack, some handlers don't react well
+        return items.stream()
             .map(this::performQuery)
             .map(this::extractJsonRecipeData);
     }

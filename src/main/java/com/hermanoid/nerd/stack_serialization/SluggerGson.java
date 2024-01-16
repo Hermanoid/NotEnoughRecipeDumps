@@ -3,9 +3,7 @@ package com.hermanoid.nerd.stack_serialization;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Set;
 
-import com.github.bsideup.jabel.Desugar;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -18,17 +16,22 @@ import com.google.gson.JsonSerializer;
 // Provides a Gson instance that turns items+fluids into minimal slugs to dramatically reduce dump sizes.
 public class SluggerGson {
 
-    @Desugar
-    private record FluidStackSerializer(RecipeDumpContext context) implements JsonSerializer<FluidStack> {
-
+    private static class FluidStackSerializer implements JsonSerializer<FluidStack> {
+        private final RecipeDumpContext context;
+        private FluidStackSerializer(RecipeDumpContext context){
+            this.context = context;
+        }
         @Override
             public JsonElement serialize(FluidStack src, Type typeOfSrc, JsonSerializationContext jcontext) {
                 return context.getMinimalFluidDump(src);
             }
         };
 
-    @Desugar
-    private record ItemStackSerializer(RecipeDumpContext context) implements JsonSerializer<ItemStack> {
+    private static class ItemStackSerializer implements JsonSerializer<ItemStack> {
+        private final RecipeDumpContext context;
+        private ItemStackSerializer(RecipeDumpContext context){
+            this.context = context;
+        }
         @Override
         public JsonElement serialize(ItemStack src, Type typeOfSrc, JsonSerializationContext jcontext) {
             return context.getMinimalItemDump(src);
