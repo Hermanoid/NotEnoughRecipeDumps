@@ -1,9 +1,11 @@
 package com.hermanoid.nerd;
 
-import com.hermanoid.nerd.info_extractors.GTDefaultRecipeInfoExtractor;
+import com.hermanoid.nerd.dumpers.DumperRegistry;
+import com.hermanoid.nerd.dumpers.GTDefaultRecipeDumper;
 
 import codechicken.nei.api.API;
 import codechicken.nei.api.IConfigureNEI;
+import com.hermanoid.nerd.dumpers.GenericDumper;
 
 // This class is automatically discovered by a system in NotEnoughItems
 @SuppressWarnings("unused")
@@ -11,9 +13,9 @@ public class NEI_NERD_Config implements IConfigureNEI {
 
     @Override
     public void loadConfig() {
-        RecipeDumper recipeDumper = new RecipeDumper("tools.dump.recipes");
-        recipeDumper.registerRecipeInfoExtractor(new GTDefaultRecipeInfoExtractor());
-        API.addOption(recipeDumper);
+        DumperRegistry.registerDumper(new GenericDumper());
+        DumperRegistry.registerDumper(new GTDefaultRecipeDumper());
+        API.addOption(new RecipeDumper("tools.dump.recipes"));
     }
 
     @Override
@@ -23,6 +25,6 @@ public class NEI_NERD_Config implements IConfigureNEI {
 
     @Override
     public String getVersion() {
-        return "(1.0)";
+        return Tags.VERSION;
     }
 }

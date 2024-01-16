@@ -8,25 +8,24 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Stream;
 
+import com.hermanoid.nerd.dumpers.DumperRegistry;
+import com.hermanoid.nerd.stack_serialization.RecipeDumpContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentTranslation;
 
 import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
-import com.hermanoid.nerd.info_extractors.IRecipeInfoExtractor;
+import com.hermanoid.nerd.dumpers.BaseRecipeDumper;
 
 import codechicken.core.CommonUtils;
 import codechicken.nei.ItemList;
 import codechicken.nei.NEIClientConfig;
 import codechicken.nei.NEIClientUtils;
-import codechicken.nei.PositionedStack;
 import codechicken.nei.config.DataDumper;
 import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.ICraftingHandler;
@@ -36,38 +35,20 @@ import codechicken.nei.recipe.ICraftingHandler;
 // Finally, it dumps all that into a (probably large) output file
 public class RecipeDumper extends DataDumper {
 
-    public RecipeDumper(String name) {
-        super(name);
-    }
-
-    public String version = "1.0";
-    long progressInterval = 2500L;
-
+    private final static long PROGRESS_INTERVAL = 2500L;
     public int totalQueries = -1;
     public int dumpedQueries = -1;
     private boolean dumpActive = false;
     private final Timer timer = new Timer();
-
     private RecipeDumpContext context = null;
-
-    private final Multimap<String, IRecipeInfoExtractor> recipeInfoExtractors = HashMultimap.create();
-
-    public void registerRecipeInfoExtractor(IRecipeInfoExtractor extractor) {
-        for (String id : extractor.getCompatibleHandlers()) recipeInfoExtractors.put(id, extractor);
+    public RecipeDumper(String name) {
+        super(name);
     }
 
     @Override
     public String[] header() {
         return new String[] { "Name", "ID", "NBT", "Handler Name", "Handler Recipe Index", "Ingredients", "Other Items",
             "Output Item" };
-    }
-
-    private JsonArray stacksToJsonArray(List<PositionedStack> stacks) {
-        JsonArray arr = new JsonArray();
-        for (PositionedStack stack : stacks) {
-            arr.add(context.getMinimalItemDump(stack.item));
-        }
-        return arr;
     }
 
     private static class QueryResult {
@@ -82,6 +63,7 @@ public class RecipeDumper extends DataDumper {
         result.handlers = GuiCraftingRecipe.getCraftingHandlers("item", targetStack);
         return result;
     }
+
 
     private JsonObject extractJsonRecipeData(QueryResult queryResult) {
         // Gather item details (don't grab everything... you can dump items if you want more details)
@@ -102,20 +84,19 @@ public class RecipeDumper extends DataDumper {
             handlerDump.addProperty("name", handler.getRecipeName());
             handlerDump.addProperty("tab_name", handler.getRecipeTabName());
 
+            Iterable<BaseRecipeDumper> dumpers;
+            if (DumperRegistry.containsKey(handlerId)) {
+                dumpers = DumperRegistry.get(handlerId);
+            }else{
+                dumpers = DumperRegistry.get(BaseRecipeDumper.FALLBACK_DUMPER_NAME);
+            }
+
             JsonArray recipeDumpArr = new JsonArray();
-            // There be some *nested loop* action here
             for (int recipeIndex = 0; recipeIndex < handler.numRecipes(); recipeIndex++) {
                 JsonObject recipeDump = new JsonObject();
-                // Collapse Ingredient Lists into JSON format to keep CSV file sizes from going *completely* crazy
-                recipeDump.add("ingredients", stacksToJsonArray(handler.getIngredientStacks(recipeIndex)));
-                recipeDump.add("other_stacks", stacksToJsonArray(handler.getOtherStacks(recipeIndex)));
-                if (handler.getResultStack(recipeIndex) != null) {
-                    recipeDump.add("out_item", context.getMinimalItemDump(handler.getResultStack(recipeIndex).item));
-                }
-                if (recipeInfoExtractors.containsKey(handlerId)) {
-                    for (IRecipeInfoExtractor extractor : recipeInfoExtractors.get(handlerId)) {
-                        recipeDump.add(extractor.getSlug(), extractor.extractInfo(context, handler, recipeIndex));
-                    }
+                // There be some seriously nested loop action here
+                for (BaseRecipeDumper dumper : dumpers) {
+                    recipeDump.add(dumper.getSlug(), dumper.dump(handler, recipeIndex));
                 }
                 recipeDumpArr.add(recipeDump);
             }
@@ -134,42 +115,26 @@ public class RecipeDumper extends DataDumper {
     }
 
     @Override
-    public String renderName() {
-        return translateN(name);
-    }
-
-    @Override
-    public String getFileExtension() {
-        return ".json";
-    }
-
-    @Override
-    public ChatComponentTranslation dumpMessage(File file) {
-        return new ChatComponentTranslation(namespaced(name + ".dumped"), "dumps/" + file.getName());
-    }
-
-    @Override
-    public String modeButtonText() {
-        return translateN(name + ".mode." + getMode());
-    }
-
-    @Override
     public Iterable<String[]> dump(int mode) {
-        // A little crunchy, I'll admit
+        // This is a little crunchy, I'll admit
         throw new NotImplementedException(
             "Recipe Dumper overrides the base DataDumper's dumping functionality in dumpTo(file)! dump() should never be called.");
     }
 
     @Override
     public void dumpTo(File file) {
-        if (getMode() != 1) {
+        // Allow both 1 and 0... I dunno why but if you're running debug the mode is 1 and if you run with the full
+        // GTNH modpack it's 0.
+        // Instead of solving it, we ignore it (big brain)
+        if (getMode() != 1 && getMode() != 0) {
             throw new RuntimeException("RecipeDumper received an unexpected mode! There should only be one mode: JSON");
         }
         dumpJson(file);
     }
 
+    // If you don't wanna hold all this crap in memory at once, you're going to have to work for it (w/ JsonWriter)
     private void doDumpJson(File file) {
-        context = new RecipeDumpContext();
+        context = setupNewContext();
         final FileWriter writer;
         final JsonWriter jsonWriter;
         final Gson gson = new Gson();
@@ -184,8 +149,7 @@ public class RecipeDumper extends DataDumper {
             jsonWriter.beginObject();
             jsonWriter.setIndent("    ");
             jsonWriter.name("version")
-                .value(version);
-
+                .value(Tags.VERSION);
             jsonWriter.name("queries")
                 .beginArray();
             Object lock = new Object();
@@ -212,21 +176,28 @@ public class RecipeDumper extends DataDumper {
         }
     }
 
+    @NotNull
+    private RecipeDumpContext setupNewContext() {
+        RecipeDumpContext context = new RecipeDumpContext();
+        DumperRegistry.setContext(context);
+        return context;
+    }
+
     private void dumpContext(RecipeDumpContext context) {
         try {
             File file = new File(
                 CommonUtils.getMinecraftDir(),
-                "dumps/" + getFileName(name.replaceFirst(".+\\.", "") + "_extras"));
+                "dumps/" + getFileName(name.replaceFirst(".+\\.", "") + "_stacks"));
             if (!file.getParentFile()
                 .exists())
                 file.getParentFile()
                     .mkdirs();
             if (!file.exists()) file.createNewFile();
 
-            // dumpTo(file);
             FileWriter writer = new FileWriter(file);
             JsonWriter jsonWriter = new JsonWriter(writer);
-            context.gson.toJson(context.dump(), jsonWriter);
+            // Use a jsonWriter dump because the FileWriter seems to chop off the end of the (very large) dump().toString()
+            new Gson().toJson(context.dump(), jsonWriter);
             jsonWriter.close();
             writer.close();
         } catch (Exception e) {
@@ -234,7 +205,6 @@ public class RecipeDumper extends DataDumper {
         }
     }
 
-    // If you don't wanna hold all this crap in memory at once, you're going to have to work for it.
     public void dumpJson(File file) {
         if (dumpActive) {
             NEIClientUtils.printChatMessage(new ChatComponentTranslation("nei.options.tools.dump.recipes.duplicate"));
@@ -268,8 +238,28 @@ public class RecipeDumper extends DataDumper {
                         (float) dumpedQueries / totalQueries * 100));
             }
         };
-        timer.schedule(progressTask, 0, progressInterval);
+        timer.schedule(progressTask, 0, PROGRESS_INTERVAL);
         return progressTask;
+    }
+
+    @Override
+    public String renderName() {
+        return translateN(name);
+    }
+
+    @Override
+    public String getFileExtension() {
+        return ".json";
+    }
+
+    @Override
+    public ChatComponentTranslation dumpMessage(File file) {
+        return new ChatComponentTranslation(namespaced(name + ".dumped"), "dumps/" + file.getName());
+    }
+
+    @Override
+    public String modeButtonText() {
+        return translateN(name + ".mode." + getMode());
     }
 
     @Override
