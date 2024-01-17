@@ -148,7 +148,7 @@ public class RecipeDumper extends DataDumper {
             jsonWriter = new JsonWriter(writer);
 
             jsonWriter.beginObject();
-            jsonWriter.setIndent("    ");
+            jsonWriter.setIndent(""); // Compact writing
             jsonWriter.name("version")
                 .value(Tags.VERSION);
             jsonWriter.name("queries")

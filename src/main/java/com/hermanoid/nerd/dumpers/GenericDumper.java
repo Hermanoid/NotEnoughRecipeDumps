@@ -32,9 +32,9 @@ public class GenericDumper extends BaseRecipeDumper {
         // But, they're also always available and the best option available
         JsonObject recipeDump = new JsonObject();
         recipeDump.add("ingredients", dumpItemStackList(handler.getIngredientStacks(recipeIndex)));
-        recipeDump.add("other_stacks", dumpItemStackList(handler.getOtherStacks(recipeIndex)));
+        recipeDump.add("otherStacks", dumpItemStackList(handler.getOtherStacks(recipeIndex)));
         if (handler.getResultStack(recipeIndex) != null) {
-            recipeDump.add("out_item", gson.toJsonTree(handler.getResultStack(recipeIndex).item));
+            recipeDump.add("outItem", gson.toJsonTree(handler.getResultStack(recipeIndex).item));
         }
         return recipeDump;
     }
