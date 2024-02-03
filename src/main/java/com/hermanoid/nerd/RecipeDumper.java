@@ -8,8 +8,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Stream;
 
-import com.hermanoid.nerd.dumpers.DumperRegistry;
-import com.hermanoid.nerd.stack_serialization.RecipeDumpContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentTranslation;
 
@@ -21,6 +19,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 import com.hermanoid.nerd.dumpers.BaseRecipeDumper;
+import com.hermanoid.nerd.dumpers.DumperRegistry;
+import com.hermanoid.nerd.stack_serialization.RecipeDumpContext;
 
 import codechicken.core.CommonUtils;
 import codechicken.nei.ItemList;
@@ -41,6 +41,7 @@ public class RecipeDumper extends DataDumper {
     private boolean dumpActive = false;
     private final Timer timer = new Timer();
     private RecipeDumpContext context = null;
+
     public RecipeDumper(String name) {
         super(name);
     }
@@ -64,13 +65,12 @@ public class RecipeDumper extends DataDumper {
         return result;
     }
 
-
     private JsonObject extractJsonRecipeData(QueryResult queryResult) {
         // Gather item details (don't grab everything... you can dump items if you want more details)
         // These columns will be repeated many times in the output, so don't write more than needed.
 
         JsonObject queryDump = new JsonObject();
-        queryDump.add("query_item", context.getMinimalItemDump(queryResult.targetStack));
+        queryDump.add("queryItem", context.getMinimalItemDump(queryResult.targetStack));
 
         JsonArray handlerDumpArr = new JsonArray();
         // Perform the Query
@@ -82,12 +82,12 @@ public class RecipeDumper extends DataDumper {
             String handlerId = handler.getHandlerId();
             handlerDump.addProperty("id", handlerId);
             handlerDump.addProperty("name", handler.getRecipeName());
-            handlerDump.addProperty("tab_name", handler.getRecipeTabName());
+            handlerDump.addProperty("tabName", handler.getRecipeTabName());
 
             Iterable<BaseRecipeDumper> dumpers;
             if (DumperRegistry.containsKey(handlerId)) {
                 dumpers = DumperRegistry.get(handlerId);
-            }else{
+            } else {
                 dumpers = DumperRegistry.get(BaseRecipeDumper.FALLBACK_DUMPER_NAME);
             }
 
@@ -109,7 +109,8 @@ public class RecipeDumper extends DataDumper {
 
     public Stream<JsonObject> getQueryDumps(List<ItemStack> items) {
         // Parallelization doesn't help a *lot* but it is like a 2x speedup so I'll take it
-        // Update yeahhhh so parallelization works with some mods but in the larger GTNH modpack, some handlers don't react well
+        // Update yeahhhh so parallelization works with some mods but in the larger GTNH modpack, some handlers don't
+        // react well
         return items.stream()
             .map(this::performQuery)
             .map(this::extractJsonRecipeData);
@@ -197,7 +198,8 @@ public class RecipeDumper extends DataDumper {
 
             FileWriter writer = new FileWriter(file);
             JsonWriter jsonWriter = new JsonWriter(writer);
-            // Use a jsonWriter dump because the FileWriter seems to chop off the end of the (very large) dump().toString()
+            // Use a jsonWriter dump because the FileWriter seems to chop off the end of the (very large)
+            // dump().toString()
             new Gson().toJson(context.dump(), jsonWriter);
             jsonWriter.close();
             writer.close();

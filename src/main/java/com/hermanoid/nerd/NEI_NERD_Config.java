@@ -2,10 +2,10 @@ package com.hermanoid.nerd;
 
 import com.hermanoid.nerd.dumpers.DumperRegistry;
 import com.hermanoid.nerd.dumpers.GTDefaultRecipeDumper;
+import com.hermanoid.nerd.dumpers.GenericDumper;
 
 import codechicken.nei.api.API;
 import codechicken.nei.api.IConfigureNEI;
-import com.hermanoid.nerd.dumpers.GenericDumper;
 
 // This class is automatically discovered by a system in NotEnoughItems
 @SuppressWarnings("unused")

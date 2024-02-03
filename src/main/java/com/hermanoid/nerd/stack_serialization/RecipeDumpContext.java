@@ -8,9 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.GsonBuilder;
-import gregtech.api.enums.Materials;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -18,13 +15,16 @@ import net.minecraft.util.RegistryNamespaced;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
 
+import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.reflect.TypeToken;
 
 import codechicken.nei.util.NBTJson;
+import gregtech.api.enums.Materials;
 import gregtech.common.fluid.GT_Fluid;
 
 public class RecipeDumpContext {
@@ -34,7 +34,6 @@ public class RecipeDumpContext {
 
     public Map<String, JsonObject> dumpedItems = new HashMap<>();
     public Map<String, JsonObject> dumpedFluids = new HashMap<>();
-
 
     private final static Gson gson;
     static {
@@ -50,13 +49,11 @@ public class RecipeDumpContext {
             // The automatic serializer doesn't like the rarity enum, I dunno why
             "rarity",
             // I don't think a fluid's corresponding block is useful, and it causes breaky recursion
-            "block"
-        );
+            "block");
         List<Type> badTypes = Collections.singletonList(Materials.class);
-        SetExclusionStrategy exclusionStrategy =
-            new SetExclusionStrategy(
-                new HashSet<>(badFields),
-                new HashSet<>(badTypes));
+        SetExclusionStrategy exclusionStrategy = new SetExclusionStrategy(
+            new HashSet<>(badFields),
+            new HashSet<>(badTypes));
         gson = new GsonBuilder()
             // We might be only doing serializations, but GSON will still create
             // a type adapter and get stuck in nasty recursion/type access land
@@ -96,14 +93,16 @@ public class RecipeDumpContext {
             fluid = (JsonObject) gson.toJsonTree(src, fluidType);
         }
         // Manually serialize rarity bc wierdness
-        fluid.addProperty("rarity", src.getRarity().toString());
+        fluid.addProperty(
+            "rarity",
+            src.getRarity()
+                .toString());
         // Slap on some info that's only available via method calls
         fluid.addProperty("id", src.getID());
         return fluid;
     }
 
-    private final static HashSet<String> standardNbtKeys
-        = new HashSet<>(Arrays.asList("id", "Count", "Damage"));
+    private final static HashSet<String> standardNbtKeys = new HashSet<>(Arrays.asList("id", "Count", "Damage"));
 
     // Gets a minimal identifier for an item
     // Most data (names, etc) is stored separately, once
@@ -114,7 +113,8 @@ public class RecipeDumpContext {
     //
     // There is also the matter of how many/most (but not all) fluids in GTNewHorizons have a corresponding item-based
     // "FluidDisplay" provided by greg, sometimes as an ingredient and sometimes as an "otherStack"
-    // Some recipes have one or the other and I haven't a clue what decides whether a recipe gets one, the other, or both
+    // Some recipes have one or the other and I haven't a clue what decides whether a recipe gets one, the other, or
+    // both
     // I'll leave resolving combining fluids+item displays to the consumer of the dump
     // However, to (pretty dramatically) cut down on export size, I'll refer to the fluid slug (stored as Damage)
     // instead of doing a normal NBT dump
@@ -150,7 +150,7 @@ public class RecipeDumpContext {
             itemObj.addProperty("itemSlug", slug);
             itemObj.addProperty("count", count);
             for (String key : standardNbtKeys) tag.removeTag(key);
-            if(!tag.hasNoTags()){
+            if (!tag.hasNoTags()) {
                 itemObj.add("NBT", NBTJson.toJsonObject(tag));
             }
             return itemObj;

@@ -8,6 +8,7 @@ import codechicken.nei.recipe.ICraftingHandler;
 public abstract class BaseRecipeDumper {
 
     public final static String FALLBACK_DUMPER_NAME = "<FALLBACK>";
+
     public abstract JsonElement dump(ICraftingHandler handler, int recipeIndex);
 
     public abstract String[] getCompatibleHandlers();

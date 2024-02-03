@@ -1,7 +1,5 @@
 package com.hermanoid.nerd.dumpers;
 
-import codechicken.nei.PositionedStack;
-import codechicken.nei.recipe.ICraftingHandler;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -9,22 +7,28 @@ import com.google.gson.JsonObject;
 import com.hermanoid.nerd.stack_serialization.RecipeDumpContext;
 import com.hermanoid.nerd.stack_serialization.SluggerGson;
 
+import codechicken.nei.PositionedStack;
+import codechicken.nei.recipe.ICraftingHandler;
+
 public class GenericDumper extends BaseRecipeDumper {
+
     private Gson gson = null;
 
     @Override
-    public void setContext(RecipeDumpContext context){
+    public void setContext(RecipeDumpContext context) {
         super.setContext(context);
-        gson = SluggerGson.gsonBuilder(context).create();
+        gson = SluggerGson.gsonBuilder(context)
+            .create();
     }
 
-    private JsonArray dumpItemStackList(Iterable<PositionedStack> stacks){
+    private JsonArray dumpItemStackList(Iterable<PositionedStack> stacks) {
         JsonArray arr = new JsonArray();
-        for (PositionedStack stack : stacks){
+        for (PositionedStack stack : stacks) {
             arr.add(gson.toJsonTree(stack.item));
         }
         return arr;
     }
+
     @Override
     public JsonElement dump(ICraftingHandler handler, int recipeIndex) {
         assert gson != null;
@@ -41,7 +45,7 @@ public class GenericDumper extends BaseRecipeDumper {
 
     @Override
     public String[] getCompatibleHandlers() {
-        return new String[]{ FALLBACK_DUMPER_NAME };
+        return new String[] { FALLBACK_DUMPER_NAME };
     }
 
     @Override
