@@ -11,8 +11,8 @@ import com.hermanoid.nerd.stack_serialization.SluggerGson;
 
 import codechicken.nei.recipe.ICraftingHandler;
 import gregtech.api.enums.Materials;
-import gregtech.api.util.GT_Recipe;
-import gregtech.nei.GT_NEI_DefaultHandler;
+import gregtech.api.util.GTRecipe;
+import gregtech.nei.GTNEIDefaultHandler;
 
 public class GTDefaultRecipeDumper extends BaseRecipeDumper {
 
@@ -23,7 +23,7 @@ public class GTDefaultRecipeDumper extends BaseRecipeDumper {
         "owners"
 
     );
-    private static final List<Type> badTypes = ImmutableList.of(GT_NEI_DefaultHandler.class, Materials.class);
+    private static final List<Type> badTypes = ImmutableList.of(GTNEIDefaultHandler.class, Materials.class);
     private Gson gson;
 
     @Override
@@ -35,8 +35,8 @@ public class GTDefaultRecipeDumper extends BaseRecipeDumper {
 
     @Override
     public JsonElement dump(ICraftingHandler handler, int recipeIndex) {
-        GT_NEI_DefaultHandler gthandler = (GT_NEI_DefaultHandler) handler;
-        GT_Recipe recipe = ((GT_NEI_DefaultHandler.CachedDefaultRecipe) gthandler.arecipes.get(recipeIndex)).mRecipe;
+        GTNEIDefaultHandler gthandler = (GTNEIDefaultHandler) handler;
+        GTRecipe recipe = ((GTNEIDefaultHandler.CachedDefaultRecipe) gthandler.arecipes.get(recipeIndex)).mRecipe;
         try {
             return gson.toJsonTree(recipe);
         } catch (Exception e) {

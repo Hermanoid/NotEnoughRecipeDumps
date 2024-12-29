@@ -1,12 +1,7 @@
 package com.hermanoid.nerd.stack_serialization;
 
 import java.lang.reflect.Type;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -25,7 +20,7 @@ import com.google.gson.reflect.TypeToken;
 
 import codechicken.nei.util.NBTJson;
 import gregtech.api.enums.Materials;
-import gregtech.common.fluid.GT_Fluid;
+import gregtech.common.fluid.GTFluid;
 
 public class RecipeDumpContext {
 
@@ -87,7 +82,7 @@ public class RecipeDumpContext {
         // but for non-GT_Fluids, we'll have to specify it to un-anonymize this beeswax.
         JsonObject fluid;
         if (src.getClass()
-            .equals(GT_Fluid.class)) {
+            .equals(GTFluid.class)) {
             fluid = (JsonObject) gson.toJsonTree(src);
         } else {
             fluid = (JsonObject) gson.toJsonTree(src, fluidType);
