@@ -4,9 +4,10 @@
 
 At long last, you can finally export all that delicious recipe data from just about every mod, automatically, into one huge and hideous dump file!
 
-
 This (somewhat) simple project adds an extra dump option to the NEI data dumps screen (Lower-left of inventory screen>Tools>Dumps).
 Why would you ever want this? Well, sometimes, those of us foolish enough to take on the GTNewHorizons modpack look up from our sprawling platline/titanium/whatever spreadsheets (I know, this is already sounding unrealistic), and we think, "boy wouldn't it be nice if I could write a script to calculate this crap." But to manually enter recipe data into a script like some sort of __plebian?__ *scoff*
+
+*A little note for people who find this script looking for exported recipes*: this exporter works! However, I have discovered an alternative that's cleaner (with the caveat that it targets fewer recipes). Check out [this WEB NEI viewer project](https://github.com/OrderedSet86/webnei-solid) by OrderedSet86, which makes use of [this exporter](https://github.com/D-Cysteine/nesql-exporter) by D-Cysteine. It works differently and targets a subset of all recipes, whereas NERD grabs everything you can see in the NEI GUI (with the caveat that it's not very neat about it). If you're looking to consume this JSON data and preprocess it/filter it, and you're up on your Python knowledge, check out [this half-baked companion project](https://github.com/Hermanoid/NERDConverter/) that I left incomplete after discovering [OrderedSet86's factory planner, gtnh-flow](https://github.com/OrderedSet86/gtnh-flow/). I decided that manually entering recipe information wasn't *that* bad for the number of processing chains you actually need to plan out in GTNH. Also note: [my fork of gtnh-flow](https://github.com/Hermanoid/gtnh-flow-projects/) has a few more random projects completed than the base repo.
 
 ### But why do it this ugly way?
 
