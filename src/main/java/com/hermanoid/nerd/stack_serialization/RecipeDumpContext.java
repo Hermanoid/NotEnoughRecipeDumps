@@ -24,12 +24,15 @@ import com.google.gson.JsonPrimitive;
 import com.google.gson.reflect.TypeToken;
 
 import codechicken.nei.util.NBTJson;
+import cpw.mods.fml.common.registry.GameData;
 import gregtech.api.enums.Materials;
 import gregtech.common.fluid.GTFluid;
 
 public class RecipeDumpContext {
 
-    private static final RegistryNamespaced itemRegistry = Item.itemRegistry;
+    // Item.itemRegistry is renamed/removed by this modpack's coremods (NoSuchFieldError at runtime);
+    // GameData.getItemRegistry() is the stable public Forge API for the same registry.
+    private static final RegistryNamespaced itemRegistry = GameData.getItemRegistry();
     private static final Type fluidType = new TypeToken<Fluid>() {}.getType();
 
     public Map<String, JsonObject> dumpedItems = new HashMap<>();

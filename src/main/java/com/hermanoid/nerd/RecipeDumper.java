@@ -9,6 +9,7 @@ import java.util.TimerTask;
 import java.util.stream.Stream;
 
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 
 import org.apache.commons.lang3.NotImplementedException;
@@ -113,7 +114,18 @@ public class RecipeDumper extends DataDumper {
         // react well
         return items.stream()
             .map(this::performQuery)
-            .map(this::extractJsonRecipeData);
+            .map(qr -> {
+                try {
+                    return extractJsonRecipeData(qr);
+                } catch (Throwable t) {
+                    // One bad handler shouldn't sink the whole (multi-hour) dump; log and keep going.
+                    NEIClientConfig.logger
+                        .error("NERD: failed to dump recipes for item {} (query #{})", qr.targetStack, dumpedQueries, t);
+                    JsonObject fallback = new JsonObject();
+                    fallback.addProperty("nerdError", t.toString());
+                    return fallback;
+                }
+            });
     }
 
     @Override
@@ -138,6 +150,7 @@ public class RecipeDumper extends DataDumper {
         List<ItemStack> items = ItemList.items;
         totalQueries = items.size();
         dumpedQueries = 0;
+        NEIClientConfig.logger.info("NERD: starting recipe dump, ItemList.items.size() = {}", totalQueries);
 
         try {
             writer = new FileWriter(file);
@@ -211,13 +224,24 @@ public class RecipeDumper extends DataDumper {
         dumpActive = true;
         TimerTask progressTask = getProgressTask();
         Thread workerThread = new Thread(() -> {
+            boolean ok = false;
             try {
                 doDumpJson(file);
+                ok = true;
+            } catch (Throwable t) {
+                // Previously this exception was silently swallowed by the JVM's default uncaught
+                // exception handler: no crash, no log line, just a truncated output file. Log it properly.
+                NEIClientConfig.logger.error("NERD: recipe dump failed", t);
             } finally {
                 dumpActive = false;
                 progressTask.cancel();
             }
-            NEIClientUtils.printChatMessage(new ChatComponentTranslation("nei.options.tools.dump.recipes.complete"));
+            if (ok) {
+                NEIClientUtils
+                    .printChatMessage(new ChatComponentTranslation("nei.options.tools.dump.recipes.complete"));
+            } else {
+                NEIClientUtils.printChatMessage(new ChatComponentText("NERD: recipe dump failed, see log for details"));
+            }
         });
         workerThread.start();
     }
